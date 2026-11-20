@@ -1,0 +1,14 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "{{wizard_shared_folder_name}}",
+        "permission": {
+          "rw": [
+            "sc-spkbuilder"
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+### Generic variables and functions
+### -------------------------------
+
+if [ -z "${SYNOPKG_PKGNAME}" ] || [ -z "${SYNOPKG_DSM_VERSION_MAJOR}" ]; then
+  echo "Error: Environment variables are not set." 1>&2;
+  echo "Please run me using synopkg instead. Example: \"synopkg start [packagename]\"" 1>&2;
+  exit 1
+fi
+
+USER="spkbuilder"
+EFF_USER="sc-spkbuilder"
+
+# DSM name of shared folder from UI if provided (created at install via conf/resource data-share)
+if [ -n "${wizard_shared_folder_name}" ]; then
+    SHARE_PATH=$(realpath "/var/packages/${SYNOPKG_PKGNAME}/shares/${wizard_shared_folder_name}" 2>/dev/null)
+    SHARE_NAME="${wizard_shared_folder_name}"
+fi
+
+# 服务启动时向导变量不再存在,从安装时保存的 installer-variables 恢复 SHARE_PATH
+INST_VARIABLES="/var/packages/${SYNOPKG_PKGNAME}/etc/installer-variables"
+if [ -z "${SHARE_PATH}" ] && [ -r "${INST_VARIABLES}" ]; then
+    . "${INST_VARIABLES}"
+fi
+
+# 数据目录:优先 File Station 共享文件夹,回退到套件 var 目录
+DATA_DIR="${SHARE_PATH:-${SYNOPKG_PKGVAR}}"
+
+# Service port
+SERVICE_PORT="8800"
+
+# start-stop-status script redirect stdout/stderr to LOG_FILE
+LOG_FILE="${SYNOPKG_PKGVAR}/${SYNOPKG_PKGNAME}.log"
+
+# Service command has to deliver its pid into PID_FILE
+PID_FILE="${SYNOPKG_PKGVAR}/${SYNOPKG_PKGNAME}.pid"
+
+# Python interpreter from the python311 dependency package (with fallbacks)
+PYTHON=""
+for _p in \
+  "/var/packages/python311/target/usr/local/bin/python3" \
+  "/var/packages/python311/target/usr/local/bin/python3.11" \
+  "/var/packages/python312/target/usr/local/bin/python3" \
+  "/var/packages/python312/target/usr/local/bin/python3.12" \
+  "/usr/local/bin/python3" \
+  "/usr/bin/python3"; do
+  if [ -x "${_p}" ]; then PYTHON="${_p}"; break; fi
+done
+[ -z "${PYTHON}" ] && PYTHON="$(command -v python3 2>/dev/null)"
+
+# Service command configuration
+SERVICE_COMMAND="${PYTHON} ${SYNOPKG_PKGDEST}/server.py"
+SVC_CWD="${SYNOPKG_PKGDEST}"
+SVC_BACKGROUND=y
+SVC_WRITE_PID=y
+SVC_KEEP_LOG=y
+SVC_WAIT_TIMEOUT=10
+
+# Environment variables for SPK 构建台
+export SPK_BUILDER_HOST="0.0.0.0"
+export SPK_BUILDER_PORT="${SERVICE_PORT}"
+export SPK_BUILDER_NO_BROWSER="1"
+export SPK_BUILDER_DATA_DIR="${DATA_DIR}"
